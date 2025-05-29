@@ -55,6 +55,7 @@ const userSchema = new mongoose.Schema({
             adminId: String,
             adminEmail: String
         },
+        mediaUrls: [{ type: String }],
         sentAt: { type: Date, default: Date.now },
         read: { type: Boolean, default: false }
     }],
@@ -72,6 +73,7 @@ const adminSchema = new mongoose.Schema({
             firstName: String,
             lastName: String
         }],
+        mediaUrls: [{ type: String }],
         sentAt: { type: Date, default: Date.now }
     }],
     createdAt: { type: Date, default: Date.now },
@@ -436,10 +438,22 @@ app.get('/admin/messages/:adminId', verifyAdminToken, async (req, res) => {
 // Send message from admin to users
 app.post('/admin/send-message', verifyAdminToken, async (req, res) => {
     try {
-        const { message, userIds, adminId } = req.body;
+        const { message, userIds, adminId, mediaUrls } = req.body;
         
-        if (!message || !userIds || !userIds.length || !adminId) {
-            return res.status(400).json({ message: 'Message content and recipient user IDs are required' });
+        if (!userIds || !userIds.length || !adminId) {
+            return res.status(400).json({ message: 'Recipient user IDs and admin ID are required' });
+        }
+
+        if (!message && (!mediaUrls || mediaUrls.length === 0)) {
+            return res.status(400).json({ message: 'Message content or media URLs are required' });
+        }
+
+        // Validate mediaUrls format (array of strings)
+        if (mediaUrls && !Array.isArray(mediaUrls)) {
+            return res.status(400).json({ message: 'mediaUrls must be an array' });
+        }
+        if (mediaUrls && mediaUrls.some(url => typeof url !== 'string')) {
+            return res.status(400).json({ message: 'All mediaUrls must be strings' });
         }
 
         // Find the admin who's sending the message
@@ -470,6 +484,7 @@ app.post('/admin/send-message', verifyAdminToken, async (req, res) => {
         admin.sentMessages.push({
             content: message,
             sentTo: recipients,
+            mediaUrls: mediaUrls || [],
             sentAt: new Date()
         });
         
@@ -482,6 +497,7 @@ app.post('/admin/send-message', verifyAdminToken, async (req, res) => {
                 adminId: admin._id,
                 adminEmail: admin.email
             },
+            mediaUrls: mediaUrls || [],
             sentAt: new Date()
         };
 
